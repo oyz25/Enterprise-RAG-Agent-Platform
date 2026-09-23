@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
-    description="Enterprise-grade Private Knowledge Base and Multi-Agent Collaboration Platform API",
+    description="Enterprise Private Knowledge Base and Multi-Agent Collaboration Platform API",
     version="0.1.0"
 )
 
