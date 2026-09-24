@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import documents
+from app.routers import documents, chunking
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
@@ -7,8 +7,9 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Register Document Router
+# Register Routers
 app.include_router(documents.router)
+app.include_router(chunking.router)
 
 
 @app.get("/")
