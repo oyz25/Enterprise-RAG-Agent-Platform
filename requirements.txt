@@ -3,3 +3,5 @@ uvicorn
 pydantic
 qdrant-client
 python-dotenv
+python-multipart
+pypdf
