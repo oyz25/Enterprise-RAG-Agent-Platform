@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -13,7 +13,6 @@ class VectorStoreService:
 
     def __init__(self):
         self.client = QdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
-        # Load local embedding model (downloads automatically on first run)
         self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
         self._ensure_collection_exists()
 
@@ -69,3 +68,61 @@ class VectorStoreService:
             points=points
         )
         return len(points)
+
+    def search_similarity(
+        self, 
+        query_text: str, 
+        limit: int = 3, 
+        filename_filter: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert query text to embedding vector and perform cosine similarity search in Qdrant.
+        Handles API compatibility across different qdrant-client versions.
+        """
+        query_vector = self.generate_embeddings([query_text])[0]
+
+        query_filter = None
+        if filename_filter:
+            query_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="metadata.filename",
+                        match=models.MatchValue(value=filename_filter)
+                    )
+                ]
+            )
+
+        # Compatibility wrapper for newer and older qdrant-client versions
+        if hasattr(self.client, "query_points"):
+            search_result = self.client.query_points(
+                collection_name=settings.COLLECTION_NAME,
+                query=query_vector,
+                query_filter=query_filter,
+                limit=limit
+            ).points
+        elif hasattr(self.client, "search"):
+            search_result = self.client.search(
+                collection_name=settings.COLLECTION_NAME,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=limit
+            )
+        else:
+            search_result = self.client.search_points(
+                collection_name=settings.COLLECTION_NAME,
+                vector=query_vector,
+                filter=query_filter,
+                limit=limit
+            ).points
+
+        results = []
+        for hit in search_result:
+            results.append({
+                "chunk_id": str(hit.id),
+                "score": round(float(hit.score), 4),
+                "text": hit.payload.get("text", ""),
+                "chunk_index": hit.payload.get("chunk_index", 0),
+                "token_count": hit.payload.get("token_count", 0),
+                "metadata": hit.payload.get("metadata", {})
+            })
+        return results

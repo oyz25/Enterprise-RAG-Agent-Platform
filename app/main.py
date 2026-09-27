@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import documents, chunking, ingestion
+from app.routers import documents, chunking, ingestion, search
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
@@ -11,6 +11,7 @@ app = FastAPI(
 app.include_router(documents.router)
 app.include_router(chunking.router)
 app.include_router(ingestion.router)
+app.include_router(search.router)
 
 
 @app.get("/")
