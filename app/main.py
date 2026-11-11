@@ -9,13 +9,14 @@ from app.routers import (
     hybrid_search, 
     rerank,
     compression,
-    advanced_search
+    advanced_search,
+    agent
 )
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
     description="Enterprise Private Knowledge Base & Multi-Agent Collaboration Platform",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 # Register Routers
@@ -29,6 +30,7 @@ app.include_router(hybrid_search.router)
 app.include_router(rerank.router)
 app.include_router(compression.router)
 app.include_router(advanced_search.router)
+app.include_router(agent.router)
 
 
 @app.get("/")
@@ -41,5 +43,5 @@ def health_check():
     return {
         "status": "healthy",
         "service": "RAG-Agent-Engine",
-        "version": "0.2.0"
+        "version": "0.3.0"
     }
