@@ -1,26 +1,33 @@
-import re
 from typing import Dict, Any, Tuple
 from app.schemas.agent import AgentIntent
-from app.services.advanced_search_pipeline import AdvancedSearchPipelineService
+from app.tools.registry import ToolRegistry
+from app.tools.calculator_tool import CalculatorTool
+from app.tools.web_search_tool import WebSearchTool
+from app.tools.knowledge_base_tool import KnowledgeBaseTool
 
 
 class AgentRouterService:
     """
     Multi-Agent Router Service responsible for classifying user intent 
-    and routing tasks to specialized sub-agents or tool pipelines.
+    and dynamically executing tools registered in ToolRegistry.
     """
 
     def __init__(self):
-        self.search_pipeline = AdvancedSearchPipelineService()
+        self.registry = ToolRegistry()
+
+        # Register available tools
+        self.registry.register_tool(CalculatorTool())
+        self.registry.register_tool(WebSearchTool())
+        self.registry.register_tool(KnowledgeBaseTool())
 
     def classify_intent(self, query: str) -> Tuple[AgentIntent, float, str]:
         """
-        Classify query intent using heuristic rules and pattern matching.
+        Classify query intent using pattern matching.
         """
         clean_query = query.lower().strip()
 
         # 1. Calculator intent pattern
-        if re.search(r"[\d\s\+\-\*\/\(\)\%]+", clean_query) and any(op in clean_query for op in ["+", "-", "*", "/", "calc", "calculate"]):
+        if any(op in clean_query for op in ["+", "-", "*", "/", "calc", "calculate"]):
             return AgentIntent.CALCULATOR, 0.95, "Query contains mathematical calculation instructions."
 
         # 2. Web search intent pattern
@@ -28,7 +35,7 @@ class AgentRouterService:
             return AgentIntent.WEB_SEARCH, 0.90, "Query requests real-time external web information."
 
         # 3. Direct chat pattern
-        if any(clean_query.startswith(kw) for kw in ["hi", "hello", "hey", "who are you", "what can you do", "thanks"]):
+        if any(clean_query.startswith(kw) for kw in ["hi", "hello", "hey", "who are you", "what can you do"]):
             return AgentIntent.DIRECT_CHAT, 0.98, "Query is a conversational greeting or general capability question."
 
         # 4. Default to Knowledge Base RAG Search
@@ -36,36 +43,28 @@ class AgentRouterService:
 
     def route_and_execute(self, query: str, session_id: str) -> Dict[str, Any]:
         """
-        Route intent to corresponding handler and return execution results.
+        Route intent to ToolRegistry and execute registered tool.
         """
         intent, confidence, reasoning = self.classify_intent(query)
-        
+
         if intent == AgentIntent.KNOWLEDGE_BASE:
-            pipeline_result = self.search_pipeline.execute_pipeline(
-                query=query,
-                top_k=3,
-                enable_rerank=True,
-                enable_compression=True
-            )
-            action = "Executed Advanced RAG Search Pipeline (Hybrid + Reranker + Compression)"
-            result_data = pipeline_result
+            result_data = self.registry.execute_tool("knowledge_base", query=query)
+            action = "Executed Tool: knowledge_base (Advanced RAG Pipeline)"
 
         elif intent == AgentIntent.CALCULATOR:
-            try:
-                expr = re.sub(r"[^\d\+\-\*\/\(\)\.]", "", query)
-                val = eval(expr)
-                result_data = {"expression": expr, "result": val}
-                action = "Executed Math Calculator Tool"
-            except Exception:
-                result_data = {"error": "Failed to evaluate mathematical expression."}
-                action = "Failed Calculator Execution"
+            result_data = self.registry.execute_tool("calculator", expression=query)
+            action = "Executed Tool: calculator"
 
         elif intent == AgentIntent.WEB_SEARCH:
-            result_data = {"message": "Web search query queued for external tool agent."}
-            action = "Delegated to Web Search Agent"
+            result_data = self.registry.execute_tool("web_search", query=query)
+            action = "Executed Tool: web_search (DuckDuckGo Search Engine)"
 
         else:  # DIRECT_CHAT
-            result_data = {"response": "Hello! I am your Enterprise RAG AI Assistant. How can I assist you today?"}
+            available_tools = self.registry.list_tools()
+            result_data = {
+                "response": "Hello! I am your Enterprise RAG AI Assistant. How can I assist you today?",
+                "available_tools": available_tools
+            }
             action = "Executed Conversational Handler"
 
         return {

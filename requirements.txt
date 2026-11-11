@@ -10,3 +10,4 @@ sentence-transformers
 pytest
 httpx
 rank-bm25
+duckduckgo-search
