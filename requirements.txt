@@ -9,3 +9,4 @@ tiktoken
 sentence-transformers
 pytest
 httpx
+rank-bm25

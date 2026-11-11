@@ -92,7 +92,6 @@ class VectorStoreService:
                 ]
             )
 
-        # Compatibility wrapper for newer and older qdrant-client versions
         if hasattr(self.client, "query_points"):
             search_result = self.client.query_points(
                 collection_name=settings.COLLECTION_NAME,
@@ -126,3 +125,27 @@ class VectorStoreService:
                 "metadata": hit.payload.get("metadata", {})
             })
         return results
+
+    def get_all_chunks(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        """
+        Retrieve stored vector payloads from Qdrant to construct sparse indexes.
+        """
+        try:
+            scroll_result, _ = self.client.scroll(
+                collection_name=settings.COLLECTION_NAME,
+                limit=limit,
+                with_payload=True,
+                with_vectors=False
+            )
+            chunks = []
+            for point in scroll_result:
+                chunks.append({
+                    "chunk_id": str(point.id),
+                    "text": point.payload.get("text", ""),
+                    "chunk_index": point.payload.get("chunk_index", 0),
+                    "token_count": point.payload.get("token_count", 0),
+                    "metadata": point.payload.get("metadata", {})
+                })
+            return chunks
+        except Exception:
+            return []

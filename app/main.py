@@ -1,10 +1,10 @@
 from fastapi import FastAPI
-from app.routers import documents, chunking, ingestion, search, rag
+from app.routers import documents, chunking, ingestion, search, rag, sparse_search, hybrid_search
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
     description="Enterprise Private Knowledge Base & Multi-Agent Collaboration Platform",
-    version="0.1.0"
+    version="0.2.0"
 )
 
 # Register Routers
@@ -13,6 +13,8 @@ app.include_router(chunking.router)
 app.include_router(ingestion.router)
 app.include_router(search.router)
 app.include_router(rag.router)
+app.include_router(sparse_search.router)
+app.include_router(hybrid_search.router)
 
 
 @app.get("/")
@@ -25,5 +27,5 @@ def health_check():
     return {
         "status": "healthy",
         "service": "RAG-Agent-Engine",
-        "version": "0.1.0"
+        "version": "0.2.0"
     }
