@@ -7,7 +7,8 @@ from app.routers import (
     rag, 
     sparse_search, 
     hybrid_search, 
-    rerank
+    rerank,
+    compression
 )
 
 app = FastAPI(
@@ -25,6 +26,7 @@ app.include_router(rag.router)
 app.include_router(sparse_search.router)
 app.include_router(hybrid_search.router)
 app.include_router(rerank.router)
+app.include_router(compression.router)
 
 
 @app.get("/")
