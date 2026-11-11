@@ -11,3 +11,5 @@ pytest
 httpx
 rank-bm25
 duckduckgo-search
+sqlalchemy
+psycopg2-binary

@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from app.core.database import engine, Base
 from app.routers import (
     documents, 
     chunking, 
@@ -12,6 +13,9 @@ from app.routers import (
     advanced_search,
     agent
 )
+
+# Auto-create PostgreSQL database tables on startup
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
