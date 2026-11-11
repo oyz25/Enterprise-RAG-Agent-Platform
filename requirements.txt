@@ -7,3 +7,5 @@ python-multipart
 pypdf
 tiktoken
 sentence-transformers
+pytest
+httpx
