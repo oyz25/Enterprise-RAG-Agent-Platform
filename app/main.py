@@ -1,5 +1,14 @@
 from fastapi import FastAPI
-from app.routers import documents, chunking, ingestion, search, rag, sparse_search, hybrid_search
+from app.routers import (
+    documents, 
+    chunking, 
+    ingestion, 
+    search, 
+    rag, 
+    sparse_search, 
+    hybrid_search, 
+    rerank
+)
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
@@ -15,6 +24,7 @@ app.include_router(search.router)
 app.include_router(rag.router)
 app.include_router(sparse_search.router)
 app.include_router(hybrid_search.router)
+app.include_router(rerank.router)
 
 
 @app.get("/")
