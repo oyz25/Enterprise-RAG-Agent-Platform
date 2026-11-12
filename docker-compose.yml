@@ -1,18 +1,14 @@
-version: '3.8'
-
 services:
-  # Qdrant
   qdrant:
     image: qdrant/qdrant:latest
     container_name: rag_qdrant
     ports:
-      - "6333:6333"   # REST API & Web Dashboard
-      - "6334:6334"   # gRPC
+      - "6333:6333"
+      - "6334:6334"
     volumes:
       - qdrant_storage:/qdrant/storage
     restart: always
 
-  # PostgreSQL
   postgres:
     image: postgres:16-alpine
     container_name: rag_postgres
@@ -24,8 +20,55 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rag_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag_backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgrespassword@postgres:5432/rag_db
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      LLM_ENABLED: "true"
+      LLM_BASE_URL: http://host.docker.internal:11434/v1
+      LLM_API_KEY: ollama
+      LLM_MODEL: llama3.2
+      API_SECRET_KEY: ""
+      RATE_LIMIT_REQUESTS: "60"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+        NEXT_PUBLIC_API_KEY: ""
+    container_name: rag_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
     restart: always
 
 volumes:
   qdrant_storage:
   postgres_data:
+  hf_cache:
