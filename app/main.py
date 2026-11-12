@@ -14,6 +14,7 @@ from app.routers import (
     advanced_search,
     agent,
     sessions,
+    evaluation,
 )
 
 # Auto-create PostgreSQL database tables on startup
@@ -50,6 +51,7 @@ app.include_router(compression.router)
 app.include_router(advanced_search.router)
 app.include_router(agent.router)
 app.include_router(sessions.router)
+app.include_router(evaluation.router)
 
 
 @app.get("/")

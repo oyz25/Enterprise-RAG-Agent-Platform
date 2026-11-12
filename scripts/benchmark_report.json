@@ -1,0 +1,78 @@
+{
+  "status": "success",
+  "total_cases": 4,
+  "mean_precision_at_k": 1.0,
+  "mrr": 1.0,
+  "mean_faithfulness": 1.0,
+  "avg_latency_ms": 4347.01,
+  "baseline_comparison": {
+    "baseline_precision_at_k": 1.0,
+    "advanced_precision_at_k": 1.0,
+    "precision_delta": 0.0,
+    "baseline_mrr": 1.0,
+    "advanced_mrr": 1.0,
+    "mrr_delta": 0.0
+  },
+  "case_results": [
+    {
+      "query": "FastAPI REST API backend experience",
+      "precision_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "faithfulness_score": 1.0,
+      "retrieved_count": 3,
+      "matched_keywords": [
+        "api",
+        "fastapi",
+        "python",
+        "rest"
+      ],
+      "synthesis_mode": "extractive_grounded",
+      "latency_ms": 10194.14
+    },
+    {
+      "query": "SQLAlchemy relational database architecture",
+      "precision_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "faithfulness_score": 1.0,
+      "retrieved_count": 3,
+      "matched_keywords": [
+        "database",
+        "pydantic",
+        "sql",
+        "sqlalchemy"
+      ],
+      "synthesis_mode": "extractive_grounded",
+      "latency_ms": 2375.59
+    },
+    {
+      "query": "Student Financial Management System project",
+      "precision_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "faithfulness_score": 1.0,
+      "retrieved_count": 3,
+      "matched_keywords": [
+        "financial",
+        "management",
+        "student",
+        "system"
+      ],
+      "synthesis_mode": "extractive_grounded",
+      "latency_ms": 2406.34
+    },
+    {
+      "query": "Software engineering internship availability",
+      "precision_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "faithfulness_score": 1.0,
+      "retrieved_count": 3,
+      "matched_keywords": [
+        "engineering",
+        "internship",
+        "software",
+        "student"
+      ],
+      "synthesis_mode": "extractive_grounded",
+      "latency_ms": 2411.98
+    }
+  ]
+}
