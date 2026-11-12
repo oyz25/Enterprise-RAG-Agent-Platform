@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.middleware.observability import ObservabilityMiddleware
+from app.middleware.rate_limiter import RateLimitMiddleware
 from app.routers import (
     documents,
     chunking,
@@ -28,7 +29,10 @@ app = FastAPI(
     version="0.3.0"
 )
 
-# Enable CORS for Next.js frontend integration
+# 1. Inner: Per-IP Sliding-Window Rate Limiter
+app.add_middleware(RateLimitMiddleware)
+
+# 2. Middle: CORS Policy for Next.js Frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -40,7 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Outermost Observability Middleware (Correlation ID, JSON Access Logs, Latency Metrics)
+# 3. Outer: Structured JSON Access Logs, Correlation ID & Latency Telemetry
 app.add_middleware(ObservabilityMiddleware)
 
 # Register Routers

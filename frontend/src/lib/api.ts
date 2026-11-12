@@ -41,7 +41,16 @@ export interface PersistedMessage {
   created_at: string;
 }
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+
+function buildAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+  return headers;
+}
 
 export async function streamAgentQuery(
   payload: AgentMessagePayload,
@@ -49,14 +58,15 @@ export async function streamAgentQuery(
 ): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/v1/agent/stream`, {
     method: "POST",
-    headers: {
+    headers: buildAuthHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
   if (!response.ok || !response.body) {
-    throw new Error(`API Error: ${response.statusText || "Stream unavailable"}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `API Error: ${response.statusText || "Stream unavailable"}`);
   }
 
   const reader = response.body.getReader();
@@ -107,6 +117,7 @@ export async function uploadDocument(
 
   const response = await fetch(`${API_BASE_URL}/api/v1/ingest/document`, {
     method: "POST",
+    headers: buildAuthHeaders(),
     body: formData,
   });
 
@@ -119,22 +130,33 @@ export async function uploadDocument(
 }
 
 export async function fetchSessions(): Promise<SessionSummary[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/sessions`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/sessions`, {
+    headers: buildAuthHeaders(),
+  });
   if (!response.ok) return [];
   const data = await response.json();
   return data.sessions || [];
 }
 
 export async function fetchSessionMessages(sessionId: string): Promise<PersistedMessage[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`);
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+    {
+      headers: buildAuthHeaders(),
+    }
+  );
   if (!response.ok) return [];
   const data = await response.json();
   return data.messages || [];
 }
 
 export async function deleteSession(sessionId: string): Promise<boolean> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
-    method: "DELETE",
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      method: "DELETE",
+      headers: buildAuthHeaders(),
+    }
+  );
   return response.ok;
 }

@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db, SessionLocal
+from app.core.security import verify_api_key, validate_user_input
 from app.schemas.agent import AgentRequest, AgentResponse, AgentIntent
 from app.services.agent_router_service import AgentRouterService
 from app.services.memory_service import MemoryService
@@ -16,48 +17,44 @@ synthesizer_service = LLMSynthesizerService()
 
 
 @router.post("/process", response_model=AgentResponse)
-async def process_agent_request(request: AgentRequest, db: Session = Depends(get_db)):
+async def process_agent_request(
+    request: AgentRequest,
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
     """
-    Multi-Agent Router endpoint with PostgreSQL memory and citation-grounded synthesis.
+    Multi-Agent Router endpoint with API key auth, input guardrails, PostgreSQL memory,
+    and citation-grounded synthesis.
     """
-    if not request.query.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Query string cannot be empty."
-        )
+    validated_query = validate_user_input(request.query)
 
     try:
         memory_service = MemoryService(db)
         session_id = request.session_id or "default_session"
 
-        # 1. Fetch prior history before appending current turn
         prior_history = memory_service.get_recent_history(session_id=session_id, limit=6)
 
-        # 2. Persist incoming user message
         memory_service.add_message(
             session_id=session_id,
             role="user",
-            content=request.query
+            content=validated_query
         )
 
-        # 3. Execute tool routing pipeline
         execution_output = agent_service.route_and_execute(
-            query=request.query,
+            query=validated_query,
             session_id=session_id
         )
 
         intent: AgentIntent = execution_output["intent"]
         res_data = execution_output["result"]
 
-        # 4. Synthesize citation-grounded answer
         synthesis = synthesizer_service.synthesize(
-            query=request.query,
+            query=validated_query,
             intent=intent,
             result_data=res_data,
             history=prior_history,
         )
 
-        # 5. Persist grounded assistant answer to PostgreSQL
         memory_service.add_message(
             session_id=session_id,
             role="assistant",
@@ -81,6 +78,8 @@ async def process_agent_request(request: AgentRequest, db: Session = Depends(get
             executed_action=execution_output["executed_action"],
             result=response_payload
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -89,15 +88,14 @@ async def process_agent_request(request: AgentRequest, db: Session = Depends(get
 
 
 @router.post("/stream")
-async def stream_agent_request(request: AgentRequest):
+async def stream_agent_request(
+    request: AgentRequest,
+    _: str = Depends(verify_api_key),
+):
     """
     Stream Multi-Agent metadata, citations, and grounded synthesis tokens via SSE.
     """
-    if not request.query.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Query string cannot be empty."
-        )
+    validated_query = validate_user_input(request.query)
 
     async def event_generator() -> AsyncGenerator[str, None]:
         db = SessionLocal()
@@ -106,10 +104,10 @@ async def stream_agent_request(request: AgentRequest):
             session_id = request.session_id or "default_session"
 
             prior_history = memory_service.get_recent_history(session_id=session_id, limit=6)
-            memory_service.add_message(session_id=session_id, role="user", content=request.query)
+            memory_service.add_message(session_id=session_id, role="user", content=validated_query)
 
             execution_output = agent_service.route_and_execute(
-                query=request.query,
+                query=validated_query,
                 session_id=session_id
             )
 
@@ -117,13 +115,12 @@ async def stream_agent_request(request: AgentRequest):
             res_data = execution_output["result"]
 
             synthesis = synthesizer_service.synthesize(
-                query=request.query,
+                query=validated_query,
                 intent=intent,
                 result_data=res_data,
                 history=prior_history,
             )
 
-            # Emit metadata + structured citations frame
             meta_payload = {
                 "event": "metadata",
                 "intent": intent.value,
@@ -134,7 +131,6 @@ async def stream_agent_request(request: AgentRequest):
             }
             yield f"data: {json.dumps(meta_payload)}\n\n"
 
-            # Stream grounded answer tokens
             formatted_text = synthesis["answer"]
             tokens = formatted_text.split(" ")
             for idx, token in enumerate(tokens):
