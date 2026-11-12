@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
+from app.middleware.observability import ObservabilityMiddleware
 from app.routers import (
     documents,
     chunking,
@@ -15,6 +16,7 @@ from app.routers import (
     agent,
     sessions,
     evaluation,
+    metrics,
 )
 
 # Auto-create PostgreSQL database tables on startup
@@ -38,6 +40,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Outermost Observability Middleware (Correlation ID, JSON Access Logs, Latency Metrics)
+app.add_middleware(ObservabilityMiddleware)
+
 # Register Routers
 app.include_router(documents.router)
 app.include_router(chunking.router)
@@ -52,6 +57,7 @@ app.include_router(advanced_search.router)
 app.include_router(agent.router)
 app.include_router(sessions.router)
 app.include_router(evaluation.router)
+app.include_router(metrics.router)
 
 
 @app.get("/")
