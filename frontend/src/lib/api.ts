@@ -25,6 +25,22 @@ export interface StreamCallbacks {
   onError: (err: string) => void;
 }
 
+export interface SessionSummary {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersistedMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  intent?: string;
+  created_at: string;
+}
+
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 export async function streamAgentQuery(
@@ -100,4 +116,25 @@ export async function uploadDocument(
   }
 
   return response.json();
+}
+
+export async function fetchSessions(): Promise<SessionSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/sessions`);
+  if (!response.ok) return [];
+  const data = await response.json();
+  return data.sessions || [];
+}
+
+export async function fetchSessionMessages(sessionId: string): Promise<PersistedMessage[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`);
+  if (!response.ok) return [];
+  const data = await response.json();
+  return data.messages || [];
+}
+
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  });
+  return response.ok;
 }

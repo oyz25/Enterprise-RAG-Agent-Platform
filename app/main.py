@@ -2,17 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.routers import (
-    documents, 
-    chunking, 
-    ingestion, 
-    search, 
-    rag, 
-    sparse_search, 
-    hybrid_search, 
+    documents,
+    chunking,
+    ingestion,
+    search,
+    rag,
+    sparse_search,
+    hybrid_search,
     rerank,
     compression,
     advanced_search,
-    agent
+    agent,
+    sessions,
 )
 
 # Auto-create PostgreSQL database tables on startup
@@ -48,6 +49,7 @@ app.include_router(rerank.router)
 app.include_router(compression.router)
 app.include_router(advanced_search.router)
 app.include_router(agent.router)
+app.include_router(sessions.router)
 
 
 @app.get("/")
