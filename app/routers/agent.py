@@ -1,6 +1,6 @@
 import json
 import asyncio
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -8,47 +8,17 @@ from app.core.database import get_db, SessionLocal
 from app.schemas.agent import AgentRequest, AgentResponse, AgentIntent
 from app.services.agent_router_service import AgentRouterService
 from app.services.memory_service import MemoryService
+from app.services.llm_synthesizer import LLMSynthesizerService
 
 router = APIRouter(prefix="/api/v1/agent", tags=["Multi-Agent Engine"])
 agent_service = AgentRouterService()
-
-
-def _format_agent_response(intent: AgentIntent, result_data: Dict[str, Any]) -> str:
-    """
-    Convert structured tool execution outputs into clean, human-readable text.
-    """
-    if intent == AgentIntent.KNOWLEDGE_BASE:
-        items = result_data.get("results", [])
-        if not items:
-            return "I searched the knowledge base, but found no matching documents for your query."
-        lines = ["Here is what I found in your knowledge base:\n"]
-        for idx, item in enumerate(items, start=1):
-            text = item.get("compressed_text") or item.get("text", "")
-            score = item.get("relevance_score", item.get("rrf_score", 0))
-            lines.append(f"{idx}. {text.strip()} (Relevance: {score})")
-        return "\n\n".join(lines)
-
-    if intent == AgentIntent.WEB_SEARCH:
-        items = result_data.get("results", [])
-        if not items:
-            return "No live web search results were found for that query."
-        lines = ["Here are the top web search results:\n"]
-        for idx, item in enumerate(items, start=1):
-            lines.append(f"{idx}. **{item.get('title', 'Untitled')}**\n{item.get('snippet', '')}\nSource: {item.get('url', '')}")
-        return "\n\n".join(lines)
-
-    if intent == AgentIntent.CALCULATOR:
-        if result_data.get("status") == "error":
-            return f"Calculation error: {result_data.get('message', 'Invalid expression')}"
-        return f"The result of `{result_data.get('expression')}` is **{result_data.get('result')}**."
-
-    return str(result_data.get("response", "How can I assist you today?"))
+synthesizer_service = LLMSynthesizerService()
 
 
 @router.post("/process", response_model=AgentResponse)
 async def process_agent_request(request: AgentRequest, db: Session = Depends(get_db)):
     """
-    Synchronous Multi-Agent Router endpoint with PostgreSQL conversation state persistence.
+    Multi-Agent Router endpoint with PostgreSQL memory and citation-grounded synthesis.
     """
     if not request.query.strip():
         raise HTTPException(
@@ -58,39 +28,54 @@ async def process_agent_request(request: AgentRequest, db: Session = Depends(get
 
     try:
         memory_service = MemoryService(db)
+        session_id = request.session_id or "default_session"
+
+        # 1. Fetch prior history before appending current turn
+        prior_history = memory_service.get_recent_history(session_id=session_id, limit=6)
+
+        # 2. Persist incoming user message
         memory_service.add_message(
-            session_id=request.session_id,
+            session_id=session_id,
             role="user",
             content=request.query
         )
 
-        recent_history = memory_service.get_recent_history(
-            session_id=request.session_id,
-            limit=6
-        )
-
+        # 3. Execute tool routing pipeline
         execution_output = agent_service.route_and_execute(
             query=request.query,
-            session_id=request.session_id
+            session_id=session_id
         )
 
+        intent: AgentIntent = execution_output["intent"]
         res_data = execution_output["result"]
-        assistant_content = _format_agent_response(execution_output["intent"], res_data)
 
-        memory_service.add_message(
-            session_id=request.session_id,
-            role="assistant",
-            content=assistant_content,
-            intent=str(execution_output["intent"].value)
+        # 4. Synthesize citation-grounded answer
+        synthesis = synthesizer_service.synthesize(
+            query=request.query,
+            intent=intent,
+            result_data=res_data,
+            history=prior_history,
         )
 
-        response_payload = execution_output["result"]
-        if isinstance(response_payload, dict):
-            response_payload["session_history_count"] = len(recent_history)
+        # 5. Persist grounded assistant answer to PostgreSQL
+        memory_service.add_message(
+            session_id=session_id,
+            role="assistant",
+            content=synthesis["answer"],
+            intent=intent.value
+        )
+
+        updated_history = memory_service.get_recent_history(session_id=session_id, limit=10)
+
+        response_payload = dict(res_data) if isinstance(res_data, dict) else {"raw": res_data}
+        response_payload["synthesized_answer"] = synthesis["answer"]
+        response_payload["citations"] = synthesis["citations"]
+        response_payload["synthesis_mode"] = synthesis["synthesis_mode"]
+        response_payload["session_history_count"] = len(updated_history)
 
         return AgentResponse(
             status="success",
-            intent=execution_output["intent"],
+            intent=intent,
             confidence_score=execution_output["confidence_score"],
             reasoning=execution_output["reasoning"],
             executed_action=execution_output["executed_action"],
@@ -106,7 +91,7 @@ async def process_agent_request(request: AgentRequest, db: Session = Depends(get
 @router.post("/stream")
 async def stream_agent_request(request: AgentRequest):
     """
-    Stream Multi-Agent intent routing, tool metadata, and formatted answer via Server-Sent Events (SSE).
+    Stream Multi-Agent metadata, citations, and grounded synthesis tokens via SSE.
     """
     if not request.query.strip():
         raise HTTPException(
@@ -120,10 +105,9 @@ async def stream_agent_request(request: AgentRequest):
             memory_service = MemoryService(db)
             session_id = request.session_id or "default_session"
 
-            # 1. Persist user message
+            prior_history = memory_service.get_recent_history(session_id=session_id, limit=6)
             memory_service.add_message(session_id=session_id, role="user", content=request.query)
 
-            # 2. Execute routing and tool pipeline
             execution_output = agent_service.route_and_execute(
                 query=request.query,
                 session_id=session_id
@@ -131,26 +115,33 @@ async def stream_agent_request(request: AgentRequest):
 
             intent: AgentIntent = execution_output["intent"]
             res_data = execution_output["result"]
-            sources = res_data.get("results", []) if isinstance(res_data, dict) else []
 
-            # 3. Emit metadata event (intent, action, structured sources)
+            synthesis = synthesizer_service.synthesize(
+                query=request.query,
+                intent=intent,
+                result_data=res_data,
+                history=prior_history,
+            )
+
+            # Emit metadata + structured citations frame
             meta_payload = {
                 "event": "metadata",
                 "intent": intent.value,
                 "executed_action": execution_output["executed_action"],
-                "sources": sources,
+                "synthesis_mode": synthesis["synthesis_mode"],
+                "citations": synthesis["citations"],
+                "sources": synthesis["citations"],
             }
             yield f"data: {json.dumps(meta_payload)}\n\n"
 
-            # 4. Format and stream response tokens
-            formatted_text = _format_agent_response(intent, res_data)
+            # Stream grounded answer tokens
+            formatted_text = synthesis["answer"]
             tokens = formatted_text.split(" ")
             for idx, token in enumerate(tokens):
                 suffix = " " if idx < len(tokens) - 1 else ""
                 yield f"data: {json.dumps({'event': 'text', 'delta': token + suffix})}\n\n"
-                await asyncio.sleep(0.025)
+                await asyncio.sleep(0.02)
 
-            # 5. Persist final assistant response to PostgreSQL
             memory_service.add_message(
                 session_id=session_id,
                 role="assistant",
@@ -158,7 +149,6 @@ async def stream_agent_request(request: AgentRequest):
                 intent=intent.value
             )
 
-            # 6. Emit completion event
             yield f"data: {json.dumps({'event': 'done'})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"

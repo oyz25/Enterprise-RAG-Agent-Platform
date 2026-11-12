@@ -1,10 +1,25 @@
+export interface CitationItem {
+  source_number: number;
+  type: "knowledge_base" | "web_search";
+  chunk_id?: string;
+  relevance_score?: number;
+  title?: string;
+  url?: string;
+  snippet: string;
+}
+
 export interface AgentMessagePayload {
   query: string;
   session_id: string;
 }
 
 export interface StreamCallbacks {
-  onMetadata: (meta: { intent: string; executed_action: string; sources: Record<string, unknown>[] }) => void;
+  onMetadata: (meta: {
+    intent: string;
+    executed_action: string;
+    synthesis_mode?: string;
+    citations: CitationItem[];
+  }) => void;
   onToken: (delta: string) => void;
   onDone: () => void;
   onError: (err: string) => void;
@@ -51,7 +66,8 @@ export async function streamAgentQuery(
           callbacks.onMetadata({
             intent: parsed.intent,
             executed_action: parsed.executed_action,
-            sources: parsed.sources || [],
+            synthesis_mode: parsed.synthesis_mode,
+            citations: parsed.citations || parsed.sources || [],
           });
         } else if (parsed.event === "text") {
           callbacks.onToken(parsed.delta || "");
@@ -61,13 +77,15 @@ export async function streamAgentQuery(
           callbacks.onDone();
         }
       } catch {
-        // Ignore malformed partial frames
+        // Ignore partial frames
       }
     }
   }
 }
 
-export async function uploadDocument(file: File): Promise<{ status: string; filename: string; chunks_ingested?: number }> {
+export async function uploadDocument(
+  file: File
+): Promise<{ status: string; filename: string; chunks_ingested?: number }> {
   const formData = new FormData();
   formData.append("file", file);
 

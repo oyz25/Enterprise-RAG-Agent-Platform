@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { streamAgentQuery, uploadDocument } from "@/lib/api";
+import { streamAgentQuery, uploadDocument, CitationItem } from "@/lib/api";
 import {
   Send,
   Bot,
@@ -14,6 +14,7 @@ import {
   Upload,
   CheckCircle2,
   Loader2,
+  BookOpen,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -22,7 +23,8 @@ interface ChatMessage {
   content: string;
   intent?: string;
   executedAction?: string;
-  sourcesCount?: number;
+  synthesisMode?: string;
+  citations?: CitationItem[];
 }
 
 export default function ChatPage() {
@@ -90,7 +92,8 @@ export default function ChatPage() {
                       ...m,
                       intent: meta.intent,
                       executedAction: meta.executed_action,
-                      sourcesCount: meta.sources.length,
+                      synthesisMode: meta.synthesis_mode,
+                      citations: meta.citations,
                     }
                   : m
               )
@@ -158,7 +161,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Header */}
       <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30">
@@ -170,7 +172,6 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Document Ingestion Control */}
         <div className="flex items-center gap-3">
           {uploadStatus && (
             <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-lg">
@@ -200,12 +201,11 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Chat Messages */}
       <main className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl w-full mx-auto">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-3">
             <Bot className="w-12 h-12 text-slate-600" />
-            <p className="text-sm">Upload a document or ask a question to stream live multi-agent responses.</p>
+            <p className="text-sm">Upload a document or ask a question to stream citation-grounded responses.</p>
           </div>
         ) : (
           messages.map((msg) => (
@@ -219,27 +219,54 @@ export default function ChatPage() {
                 </div>
               )}
               <div
-                className={`max-w-2xl rounded-xl px-4 py-3 text-sm leading-relaxed space-y-2 ${
+                className={`max-w-2xl rounded-xl px-4 py-3 text-sm leading-relaxed space-y-2.5 ${
                   msg.role === "user"
                     ? "bg-indigo-600 text-white rounded-br-none"
                     : "bg-slate-900 text-slate-200 border border-slate-800 rounded-bl-none shadow-sm"
                 }`}
               >
                 {msg.intent && (
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     {getIntentBadge(msg.intent)}
-                    {typeof msg.sourcesCount === "number" && msg.sourcesCount > 0 && (
-                      <span className="text-[11px] text-slate-400">
-                        • {msg.sourcesCount} sources retrieved
+                    {msg.synthesisMode && (
+                      <span className="text-[11px] bg-slate-800/90 text-slate-400 px-2 py-0.5 rounded border border-slate-700/70">
+                        {msg.synthesisMode}
                       </span>
                     )}
                   </div>
                 )}
+
                 <div className="whitespace-pre-wrap">
-                  {msg.content || (isLoading ? "Thinking..." : "")}
+                  {msg.content || (isLoading ? "Synthesizing grounded answer..." : "")}
                 </div>
+
+                {msg.citations && msg.citations.length > 0 && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                      <BookOpen className="w-3 h-3 text-indigo-400" />
+                      <span>Grounded Citations ({msg.citations.length})</span>
+                    </div>
+                    <div className="grid gap-1.5">
+                      {msg.citations.map((cite) => (
+                        <div
+                          key={cite.source_number}
+                          className="text-xs bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-slate-300"
+                        >
+                          <div className="flex items-center justify-between text-[11px] text-indigo-400 font-medium mb-1">
+                            <span>[Source {cite.source_number}]</span>
+                            {typeof cite.relevance_score === "number" && (
+                              <span className="text-slate-500">Score: {cite.relevance_score}</span>
+                            )}
+                          </div>
+                          <p className="text-slate-400 line-clamp-2">{cite.snippet}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {msg.executedAction && (
-                  <p className="text-[10px] text-slate-400 border-t border-slate-800 pt-1 mt-2">
+                  <p className="text-[10px] text-slate-500 pt-1">
                     Action: {msg.executedAction}
                   </p>
                 )}
@@ -255,7 +282,6 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </main>
 
-      {/* Input Form */}
       <footer className="p-4 border-t border-slate-800 bg-slate-900/50 backdrop-blur">
         <div className="max-w-4xl mx-auto flex gap-3">
           <input
