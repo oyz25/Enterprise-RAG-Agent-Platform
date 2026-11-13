@@ -4,7 +4,7 @@
   "mean_precision_at_k": 1.0,
   "mrr": 1.0,
   "mean_faithfulness": 1.0,
-  "avg_latency_ms": 4434.16,
+  "avg_latency_ms": 4383.38,
   "baseline_comparison": {
     "baseline_precision_at_k": 1.0,
     "advanced_precision_at_k": 1.0,
@@ -27,7 +27,7 @@
         "rest"
       ],
       "synthesis_mode": "extractive_grounded",
-      "latency_ms": 10663.02
+      "latency_ms": 10213.06
     },
     {
       "query": "SQLAlchemy relational database architecture",
@@ -42,7 +42,7 @@
         "sqlalchemy"
       ],
       "synthesis_mode": "extractive_grounded",
-      "latency_ms": 2352.47
+      "latency_ms": 2447.36
     },
     {
       "query": "Student Financial Management System project",
@@ -57,7 +57,7 @@
         "system"
       ],
       "synthesis_mode": "extractive_grounded",
-      "latency_ms": 2356.83
+      "latency_ms": 2455.34
     },
     {
       "query": "Software engineering internship availability",
@@ -72,7 +72,7 @@
         "student"
       ],
       "synthesis_mode": "extractive_grounded",
-      "latency_ms": 2364.33
+      "latency_ms": 2417.76
     }
   ]
 }
