@@ -25,8 +25,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Enterprise RAG & Agent Platform",
-    description="Enterprise Private Knowledge Base & Multi-Agent Collaboration Platform",
-    version="0.3.0"
+    description="Production-Ready Private Knowledge Base & Multi-Agent Collaboration Platform",
+    version="1.0.0",
 )
 
 # 1. Inner: Per-IP Sliding-Window Rate Limiter
@@ -66,7 +66,10 @@ app.include_router(metrics.router)
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Enterprise RAG & Agent Platform API"}
+    return {
+        "message": "Welcome to Enterprise RAG & Agent Platform API",
+        "version": "1.0.0",
+    }
 
 
 @app.get("/health")
@@ -74,5 +77,5 @@ def health_check():
     return {
         "status": "healthy",
         "service": "RAG-Agent-Engine",
-        "version": "0.3.0"
+        "version": "1.0.0",
     }

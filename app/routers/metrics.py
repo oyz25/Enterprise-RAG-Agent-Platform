@@ -14,7 +14,7 @@ def get_platform_metrics():
     return MetricsResponse(
         status="success",
         service="RAG-Agent-Engine",
-        version="0.3.0",
+        version="1.0.0",
         **stats,
     )
 
